@@ -10,13 +10,13 @@ type Tag = string
 type Tool = string
 
 type Entry struct {
-	project Project
+	Project Project
 	tags    []Tag
 	tools   []Tool
 }
 
 func (e *Entry) SetProject(s string) {
-	e.project = strings.TrimSpace(s)
+	e.Project = strings.TrimSpace(s)
 }
 
 func (e *Entry) AddTag(t string) {
@@ -43,7 +43,7 @@ func (e Entry) String() string {
 
 func prettyEntry(entry Entry) string {
 	s := ""
-	s += fmt.Sprintf("%s", entry.project)
+	s += fmt.Sprintf("%s", entry.Project)
 	for _, t := range entry.tags {
 		s += fmt.Sprintf(" %s", t)
 	}

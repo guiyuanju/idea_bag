@@ -81,12 +81,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func filterEntry(entries []model.Entry, text string) []*model.Entry {
+	tokens := strings.FieldsFunc(text, func(r rune) bool { return strings.Contains(" \t\n#&", string(r)) })
 	res := []*model.Entry{}
+outer:
 	for i := range len(entries) {
 		e := &entries[i]
-		if strings.Contains(e.String(), strings.TrimSpace(text)) {
-			res = append(res, e)
+		for _, token := range tokens {
+			if !strings.Contains(e.String(), token) {
+				continue outer
+			}
 		}
+		res = append(res, e)
 	}
 	return res
 }

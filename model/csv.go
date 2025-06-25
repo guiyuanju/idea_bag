@@ -14,7 +14,7 @@ func ToCsv(entries []Entry, writer io.Writer) error {
 	}
 
 	for _, entry := range entries {
-		line := []byte(entry.project)
+		line := []byte(entry.Project)
 		line = append(line, byte(','))
 
 		for _, tag := range entry.tags {

@@ -23,6 +23,9 @@ func (p *EntryParser) Parse() (model.Entry, error) {
 	for p.i < len(p.s) {
 		switch p.s[p.i] {
 		case '#':
+			if len(e.Project) == 0 {
+				return model.Entry{}, errors.New(p.errorMsg("should provide project name first"))
+			}
 			tag, err := p.parseTag()
 			if err != nil {
 				return model.Entry{}, errors.New(p.errorMsg(err.Error()))
@@ -30,6 +33,9 @@ func (p *EntryParser) Parse() (model.Entry, error) {
 			e.AddTag(tag)
 
 		case '&':
+			if len(e.Project) == 0 {
+				return model.Entry{}, errors.New(p.errorMsg("should provide project name first"))
+			}
 			tool, err := p.parseTool()
 			if err != nil {
 				return model.Entry{}, errors.New(p.errorMsg(err.Error()))
