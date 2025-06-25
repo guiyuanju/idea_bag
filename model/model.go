@@ -72,6 +72,6 @@ func (e Entry) Description() string {
 	return s
 }
 
-func (e Entry) FilterValue() string {
-	return e.Title() + e.Description()
+func (e *Entry) FilterValue() string {
+	return e.Title() + " " + e.Description()
 }
