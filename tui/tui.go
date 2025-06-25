@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
+	// "github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -15,6 +17,7 @@ type Model struct {
 	FilteredEntries []*model.Entry
 	SelectedEntry   int
 	Input           string
+	TextInput       textinput.Model
 	ParsingEntry    model.Entry
 	Msg             string
 }
@@ -22,30 +25,32 @@ type Model struct {
 func initModel(entries []model.Entry) Model {
 	filtered := make([]*model.Entry, len(entries))
 	for i := range filtered {
-		filtered[i] = &entries[i]
+		filtered[i] = &entries[len(entries)-i-1]
 	}
+	ti := textinput.New()
+	ti.Placeholder = "Search or add"
+	ti.Focus()
+	ti.CharLimit = 0
+	ti.Width = 20
 	return Model{
 		AllEntries:      entries,
 		FilteredEntries: filtered,
 		SelectedEntry:   -1,
 		Input:           "",
+		TextInput:       ti,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	instantParse := func() {
-		p := parser.New(m.Input, 2)
+	m.TextInput.Validate = func(s string) error {
+		p := parser.New(s, 2)
 		e, err := p.Parse()
-		if err != nil {
-			m.Msg = err.Error()
-		} else {
-			m.Msg = ""
-		}
 		m.ParsingEntry = e
+		return err
 	}
 
 	switch msg := msg.(type) {
@@ -54,26 +59,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "enter":
-			instantParse()
-			m.AllEntries = append(m.AllEntries, m.ParsingEntry)
-			m.Input = ""
-			m.FilteredEntries = filterEntry(m.AllEntries, m.Input)
-			return m, nil
-		case "backspace":
-			if len(m.Input) > 0 {
-				m.Input = m.Input[:len(m.Input)-1]
+			if m.TextInput.Err != nil {
+				return m, nil
 			}
+			m.AllEntries = append(m.AllEntries, m.ParsingEntry)
 			m.FilteredEntries = filterEntry(m.AllEntries, m.Input)
-			instantParse()
-		case "ctrl+u":
-			m.Input = ""
-			m.FilteredEntries = filterEntry(m.AllEntries, m.Input)
-			instantParse()
-		default:
-			m.Input += msg.String()
-			m.FilteredEntries = filterEntry(m.AllEntries, m.Input)
-			instantParse()
+			m.TextInput.Reset()
 			return m, nil
+		default:
+			var cmd tea.Cmd
+			m.TextInput, cmd = m.TextInput.Update(msg)
+			if m.TextInput.Err != nil {
+				m.Msg = m.TextInput.Err.Error()
+			} else {
+				m.Msg = ""
+			}
+
+			m.FilteredEntries = filterEntry(m.AllEntries, m.TextInput.Value())
+			// instantParse()
+			return m, cmd
 		}
 	}
 
@@ -85,7 +89,7 @@ func filterEntry(entries []model.Entry, text string) []*model.Entry {
 	res := []*model.Entry{}
 outer:
 	for i := range len(entries) {
-		e := &entries[i]
+		e := &entries[len(entries)-i-1]
 		for _, token := range tokens {
 			if !strings.Contains(e.String(), token) {
 				continue outer
@@ -97,7 +101,7 @@ outer:
 }
 
 func (m Model) View() string {
-	s := "> " + m.Input + "▋\n"
+	s := m.TextInput.View() + "\n"
 	if len(m.Msg) > 0 {
 		s += m.Msg + "\n"
 	}

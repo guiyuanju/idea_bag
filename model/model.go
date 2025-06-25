@@ -61,3 +61,17 @@ func prettyEntries(entries []Entry) string {
 	}
 	return s
 }
+
+func (e Entry) Title() string {
+	return e.Project
+}
+
+func (e Entry) Description() string {
+	s := strings.Join(e.tags, " ")
+	s += strings.Join(e.tools, " ")
+	return s
+}
+
+func (e Entry) FilterValue() string {
+	return e.Title() + e.Description()
+}
