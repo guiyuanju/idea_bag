@@ -1,4 +1,4 @@
-package main
+package model
 
 import (
 	"bufio"
@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func toCsv(entries []Entry, writer io.Writer) error {
+func ToCsv(entries []Entry, writer io.Writer) error {
 	header := []byte("project,tags,tools\n")
 	_, err := writer.Write(header)
 	if err != nil {
@@ -36,7 +36,7 @@ func toCsv(entries []Entry, writer io.Writer) error {
 	return nil
 }
 
-func fromCsv(reader io.Reader) []Entry {
+func FromCsv(reader io.Reader) []Entry {
 	var res []Entry
 	scanner := bufio.NewScanner(reader)
 	scanner.Scan() // jump the head
@@ -44,7 +44,7 @@ func fromCsv(reader io.Reader) []Entry {
 		entry := Entry{}
 		line := scanner.Text()
 		fields := strings.Split(line, ",")
-		entry.project = fields[0]
+		entry.SetProject(fields[0])
 
 		var tags []string
 		curTag := ""
