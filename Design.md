@@ -33,3 +33,5 @@ TODO:
 - [ ] delete item
 - [ ] save before quit
 - [ ] confirm before quit
+- [ ] scroll when list too long
+- [ ] support all keys OR disable unsopported keys
