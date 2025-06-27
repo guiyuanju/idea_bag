@@ -37,8 +37,8 @@ func (e *Entry) AddTool(t string) {
 	e.tools = append(e.tools, tool)
 }
 
-func (e Entry) String() string {
-	return prettyEntry(e)
+func (e *Entry) String() string {
+	return prettyEntry(*e)
 }
 
 func prettyEntry(entry Entry) string {

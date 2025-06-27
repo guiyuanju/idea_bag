@@ -29,3 +29,7 @@ TODO:
 - [x] split model
 - [x] disallow empty project entry
 - [ ] support arrow key in TUI
+- [x] use custom filter, filter+add in the same
+- [ ] delete item
+- [ ] save before quit
+- [ ] confirm before quit

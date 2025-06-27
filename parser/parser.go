@@ -19,6 +19,10 @@ func (p *EntryParser) invalid() bool {
 }
 
 func (p *EntryParser) Parse() (model.Entry, error) {
+	if len(p.s) == 0 {
+		return model.Entry{}, errors.New(p.errorMsg("expect project name"))
+	}
+
 	e := model.Entry{}
 	for p.i < len(p.s) {
 		switch p.s[p.i] {
