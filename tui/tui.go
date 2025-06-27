@@ -21,6 +21,7 @@ type State int
 const (
 	Listing = iota
 	Adding
+	Filtering
 )
 
 type Model struct {

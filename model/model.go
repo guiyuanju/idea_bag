@@ -69,6 +69,9 @@ func (e Entry) Title() string {
 
 func (e Entry) Description() string {
 	all := slices.Concat(e.tags, e.tools)
+	if len(all) == 0 {
+		return "no tags or tools"
+	}
 	return strings.Join(all, " ")
 }
 
