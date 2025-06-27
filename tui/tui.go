@@ -76,6 +76,7 @@ outer:
 		for i := range len(res) {
 			if res[i].Project != m.FilteredEntries[i].Project {
 				m.SelectedEntry = 0
+				break
 			}
 		}
 	}
