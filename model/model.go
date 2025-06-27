@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -67,9 +68,8 @@ func (e Entry) Title() string {
 }
 
 func (e Entry) Description() string {
-	s := strings.Join(e.tags, " ")
-	s += strings.Join(e.tools, " ")
-	return s
+	all := slices.Concat(e.tags, e.tools)
+	return strings.Join(all, " ")
 }
 
 func (e *Entry) FilterValue() string {

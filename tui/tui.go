@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,44 +16,80 @@ import (
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
+type State int
+
+const (
+	Listing = iota
+	Adding
+)
+
 type Model struct {
-	EntryList list.Model
-	// FilteredEntries []*model.Entry
-	// SelectedEntry int
-	// Input         string
+	State        State
+	EntryList    list.Model
 	TextInput    textinput.Model
+	ParseErr     string
 	ParsingEntry model.Entry
-	Msg          string
+	keys         *listKeyMap
+}
+
+type listKeyMap struct {
+	openAddInput    key.Binding
+	confirmAddInput key.Binding
+	closeAddInput   key.Binding
+	backspace       key.Binding
+}
+
+func newListKeyMap() *listKeyMap {
+	return &listKeyMap{
+		openAddInput: key.NewBinding(
+			key.WithKeys("a"),
+			key.WithHelp("a", "add item"),
+		),
+		confirmAddInput: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "confirm"),
+		),
+		closeAddInput: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "cancel add"),
+		),
+		backspace: key.NewBinding(
+			key.WithKeys("backspace"),
+			key.WithHelp("backspace", "delete"),
+		),
+	}
 }
 
 func initModel(entries []list.Item) Model {
-	// filtered := make([]*model.Entry, len(entries))
-	// for i := range filtered {
-	// 	filtered[i] = &entries[len(entries)-i-1]
-	// }
+	listKeys := newListKeyMap()
+
 	ti := textinput.New()
-	ti.Placeholder = "Search or add"
-	ti.Focus()
+	ti.Placeholder = "Add"
+	ti.Blur()
 	ti.CharLimit = 0
 	ti.Width = 20
 
 	entryList := list.New(entries, list.NewDefaultDelegate(), 0, 0)
-	entryList.Title = "Idea Bag"
-
-	// fmt.Println(entries[0].FilterValue())
-	// os.Exit(0)
+	// entryList.Title = "Idea Bag"
+	entryList.SetShowTitle(false)
+	entryList.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			listKeys.openAddInput,
+			listKeys.confirmAddInput,
+			listKeys.closeAddInput,
+		}
+	}
 
 	return Model{
+		State:     Listing,
 		EntryList: entryList,
-		// FilteredEntries: filtered,
-		// SelectedEntry: -1,
-		// Input:     "",
 		TextInput: ti,
+		keys:      listKeys,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return textinput.Blink
+	return nil
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -63,38 +100,67 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return err
 	}
 
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
-			return m, tea.Quit
-		case "enter":
-			if m.TextInput.Err != nil {
-				return m, nil
-			}
-			// m.AllEntries = append(m.AllEntries, m.ParsingEntry)
-			// m.FilteredEntries = filterEntry(m.AllEntries, m.Input)
-			m.TextInput.Reset()
-			return m, nil
-		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
-		m.EntryList.SetSize(msg.Width-h, msg.Height-v)
+		m.EntryList.SetSize(msg.Width-h, msg.Height-v-2)
+	case tea.KeyMsg:
+		if m.EntryList.FilterState() == list.Filtering {
+			break
+		}
+		switch {
+		case key.Matches(msg, m.keys.openAddInput):
+			if m.State == Listing {
+				m.State = Adding
+				m.TextInput.Focus()
+				return m, nil
+			}
+
+		case key.Matches(msg, m.keys.closeAddInput):
+			if m.State == Adding {
+				m.State = Listing
+				m.TextInput.Reset()
+				m.TextInput.Blur()
+				return m, nil
+			}
+
+		case key.Matches(msg, m.keys.confirmAddInput):
+			if m.State == Adding && m.TextInput.Err == nil {
+				m.EntryList.InsertItem(0, &m.ParsingEntry)
+				m.State = Listing
+				m.TextInput.Reset()
+				m.TextInput.Blur()
+				return m, nil
+			}
+
+		case key.Matches(msg, m.keys.backspace):
+			if m.State == Listing {
+				m.EntryList.RemoveItem(m.EntryList.GlobalIndex())
+			}
+		}
 	}
 
 	var cmd tea.Cmd
-	// m.TextInput, cmd = m.TextInput.Update(msg)
-	// if m.TextInput.Err != nil {
-	// 	m.Msg = m.TextInput.Err.Error()
-	// } else {
-	// 	m.Msg = ""
-	// }
+	var error string
 
-	m.EntryList, cmd = m.EntryList.Update(msg)
+	switch m.State {
+	case Adding:
+		m.TextInput, cmd = m.TextInput.Update(msg)
+		cmds = append(cmds, cmd)
+		if m.TextInput.Err != nil {
+			error = m.TextInput.Err.Error()
+		} else {
+			error = ""
+		}
+		m.ParseErr = error
 
-	// m.FilteredEntries = filterEntry(m.AllEntries, m.TextInput.Value())
-	// instantParse()
-	return m, cmd
+	case Listing:
+		m.EntryList, cmd = m.EntryList.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 func filterEntry(entries []model.Entry, text string) []*model.Entry {
@@ -114,18 +180,14 @@ outer:
 }
 
 func (m Model) View() string {
-	// s := ""
-	// s += m.TextInput.View() + "\n"
-	// if len(m.Msg) > 0 {
-	// 	s += m.Msg + "\n"
-	// }
-
-	s := docStyle.Render(m.EntryList.View())
-	// for _, e := range m.FilteredEntries {
-	// 	s += fmt.Sprintf("%v\n", e)
-	// }
-
-	return s
+	input := ""
+	if m.State == Adding {
+		input += "  " + m.TextInput.View() + "\n"
+		input += "  " + m.ParseErr
+	}
+	list := docStyle.Render(m.EntryList.View())
+	res := lipgloss.JoinVertical(lipgloss.Left, input, list)
+	return res
 }
 
 type TUI struct {
