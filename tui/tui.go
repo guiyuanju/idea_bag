@@ -7,16 +7,48 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/x/term"
+	"golang.org/x/term"
 )
 
 type Model struct {
-	AllEntries      []model.Entry
-	FilteredEntries []*model.Entry
-	SelectedEntry   int
-	Input           string
-	ParsingEntry    model.Entry
-	Msg             string
+	AllEntries             []model.Entry
+	FilteredEntries        []*model.Entry
+	SelectedFilterEntryIdx int
+	SelectedEntry          *model.Entry
+	Input                  string
+	ParsingEntry           model.Entry
+	ErrMsg                 string
+}
+
+func (m Model) headHeight() int {
+	inputHeight := 1
+	var errMsgHeight int
+	if len(m.ErrMsg) > 0 {
+		errMsgHeight = 1
+	}
+	return inputHeight + errMsgHeight + 1
+}
+
+func (m Model) usableHeight() int {
+	_, h, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		panic("ERROR: failed to obtain terminal size")
+	}
+	usableHeight := h - m.headHeight()
+	return usableHeight
+}
+
+func (m Model) visibleFilteredEntries() []*model.Entry {
+	h := m.usableHeight()
+	if len(m.FilteredEntries) <= h {
+		return m.FilteredEntries
+	}
+
+	if m.SelectedFilterEntryIdx >= h {
+		return m.FilteredEntries[m.SelectedFilterEntryIdx-h : m.SelectedFilterEntryIdx]
+	}
+
+	return m.FilteredEntries
 }
 
 func initModel(entries []model.Entry) Model {
@@ -25,11 +57,18 @@ func initModel(entries []model.Entry) Model {
 		filtered[i] = &entries[i]
 	}
 	return Model{
-		AllEntries:      entries,
-		FilteredEntries: filtered,
-		SelectedEntry:   0,
-		Input:           "",
+		AllEntries:             entries,
+		FilteredEntries:        filtered,
+		SelectedFilterEntryIdx: 0,
+		Input:                  "",
 	}
+}
+
+func (m *Model) resetSelectedEntry() {
+	if len(m.FilteredEntries) > 0 {
+		m.SelectedEntry = m.FilteredEntries[0]
+	}
+	m.SelectedEntry = nil
 }
 
 func view(m Model) string {
@@ -37,13 +76,13 @@ func view(m Model) string {
 	// prompt
 	s += fmt.Sprintf("> %s█\r\n", m.Input)
 	// error
-	if len(m.Msg) > 0 {
-		s += fmt.Sprintf("%s\r\n", m.Msg)
+	if len(m.ErrMsg) > 0 {
+		s += fmt.Sprintf("%s\r\n", m.ErrMsg)
 	}
 	// list
-	for i, e := range m.FilteredEntries {
+	for _, e := range m.visibleFilteredEntries() {
 		cur := BgBlueMatched(e.String(), strings.Fields(m.Input))
-		if m.SelectedEntry == i {
+		if m.SelectedEntry == e {
 			cur = fmt.Sprintf("[ %s ]", cur)
 			cur = Text(cur).Bold().String()
 		} else {
@@ -71,11 +110,11 @@ outer:
 	}
 	// any change to filter view reset the selected item
 	if len(m.FilteredEntries) != len(res) {
-		m.SelectedEntry = 0
+		m.resetSelectedEntry()
 	} else {
 		for i := range len(res) {
 			if res[i].Project != m.FilteredEntries[i].Project {
-				m.SelectedEntry = 0
+				m.resetSelectedEntry()
 				break
 			}
 		}
@@ -88,11 +127,11 @@ func instantParse(m *Model) error {
 	p := parser.New(m.Input, 2)
 	entry, err := p.Parse()
 	if err != nil {
-		m.Msg = err.Error()
+		m.ErrMsg = err.Error()
 		return err
 	}
 	m.ParsingEntry = entry
-	m.Msg = ""
+	m.ErrMsg = ""
 	return nil
 }
 
@@ -105,11 +144,11 @@ func New(entries []model.Entry) TUI {
 }
 
 func (t *TUI) Run() {
-	oldState, err := term.MakeRaw(os.Stdin.Fd())
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		panic(err)
 	}
-	defer term.Restore(os.Stdin.Fd(), oldState)
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
 	HideCursor()
 	defer ShowCursor()
@@ -137,20 +176,20 @@ func (t *TUI) Run() {
 			return
 		case KeyCtrlU:
 			model.Input = ""
-			model.Msg = ""
+			model.ErrMsg = ""
 		case KeyBackspace:
 			if len(model.Input) > 0 {
 				model.Input = model.Input[:len(model.Input)-1]
 			}
-			model.Msg = ""
+			model.ErrMsg = ""
 		case KeyCtrlN:
 			if len(model.FilteredEntries) > 0 {
-				model.SelectedEntry = (model.SelectedEntry + 1) % len(model.FilteredEntries)
+				model.SelectedFilterEntryIdx = (model.SelectedFilterEntryIdx + 1) % len(model.FilteredEntries)
 			}
 		case KeyCtrlP:
 			if len(model.FilteredEntries) > 0 {
 				// add an extra length to ensure the mod result greater than zero
-				model.SelectedEntry = (model.SelectedEntry - 1 + len(model.FilteredEntries)) % len(model.FilteredEntries)
+				model.SelectedFilterEntryIdx = (model.SelectedFilterEntryIdx - 1 + len(model.FilteredEntries)) % len(model.FilteredEntries)
 			}
 		case KeyEnter:
 			if instantParse(&model) == nil {
@@ -159,7 +198,7 @@ func (t *TUI) Run() {
 			}
 		default:
 			model.Input += string(byte(key))
-			model.Msg = ""
+			model.ErrMsg = ""
 		}
 	}
 }
