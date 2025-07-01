@@ -11,57 +11,79 @@ import (
 )
 
 type Model struct {
-	AllEntries      []model.Entry
-	FilteredEntries []*model.Entry
-	SelectedEntry   int
-	Input           string
-	ParsingEntry    model.Entry
-	Msg             string
+	Entries       []*model.Entry
+	Filtered      []*model.Entry
+	Visible       []*model.Entry
+	SelectedEntry *model.Entry
+	Input         string
+	ParsingEntry  model.Entry
+	Msg           string
 }
 
-func initModel(entries []model.Entry) Model {
-	filtered := make([]*model.Entry, len(entries))
-	for i := range filtered {
-		filtered[i] = &entries[i]
-	}
+func initModel(entries []*model.Entry) Model {
 	return Model{
-		AllEntries:      entries,
-		FilteredEntries: filtered,
-		SelectedEntry:   0,
-		Input:           "",
+		Entries:       entries,
+		SelectedEntry: nil,
+		Input:         "",
 	}
 }
 
-func view(m Model) string {
-	var s string
-	// prompt
-	s += fmt.Sprintf("> %s█\r\n", m.Input)
-	// error
-	if len(m.Msg) > 0 {
-		s += fmt.Sprintf("%s\r\n", m.Msg)
-	}
-	// list
-	for i, e := range m.FilteredEntries {
-		cur := BgBlueMatched(e.String(), strings.Fields(m.Input))
-		if m.SelectedEntry == i {
-			cur = fmt.Sprintf("[ %s ]", cur)
-			cur = Text(cur).Bold().String()
-		} else {
-			cur = fmt.Sprintf("  %s", cur)
+func (m *Model) Update() {
+	m.updateFilter()
+	m.updateVisible()
+}
+
+func (m *Model) AddEntry(e model.Entry) {
+	m.Entries = append(m.Entries, &e)
+}
+
+func (m *Model) IndexOfEntryInFiltered(entry *model.Entry) (int, bool) {
+	for i, e := range m.Filtered {
+		if e == entry {
+			return i, true
 		}
-		s += cur + "\r\n"
 	}
-	return s
+	return 0, false
 }
 
-func filterEntry(m *Model) {
+func (m *Model) SelectNextEntry() {
+	idx, ok := m.IndexOfEntryInFiltered(m.SelectedEntry)
+	if !ok {
+		if len(m.Filtered) > 0 {
+			m.SelectedEntry = m.Filtered[0]
+		}
+		return
+	}
+	if idx+1 >= len(m.Filtered) {
+		m.SelectedEntry = m.Filtered[0]
+		return
+	}
+	m.SelectedEntry = m.Filtered[idx+1]
+}
+
+func (m *Model) SelectPrevEntry() {
+	idx, ok := m.IndexOfEntryInFiltered(m.SelectedEntry)
+	if !ok {
+		if len(m.Filtered) > 0 {
+			m.SelectedEntry = m.Filtered[0]
+		}
+		return
+	}
+	if idx-1 < 0 {
+		m.SelectedEntry = m.Filtered[len(m.Filtered)-1]
+		return
+	}
+	m.SelectedEntry = m.Filtered[idx-1]
+}
+
+func (m *Model) updateFilter() {
 	text := m.Input
 	tokens := strings.Fields(text)
 	res := []*model.Entry{}
 outer:
-	for i := range len(m.AllEntries) {
+	for i := range len(m.Entries) {
 		// reverse, make the newest added item shows at the top
-		e := &m.AllEntries[len(m.AllEntries)-i-1]
+		e := m.Entries[len(m.Entries)-i-1]
 		for _, token := range tokens {
 			if !strings.Contains(e.String(), token) {
 				continue outer
@@ -69,19 +91,12 @@ outer:
 		}
 		res = append(res, e)
 	}
-	// any change to filter view reset the selected item
-	if len(m.FilteredEntries) != len(res) {
-		m.SelectedEntry = 0
-	} else {
-		for i := range len(res) {
-			if res[i].Project != m.FilteredEntries[i].Project {
-				m.SelectedEntry = 0
-				break
-			}
-		}
-	}
 
-	m.FilteredEntries = res
+	m.Filtered = res
+}
+
+func (m *Model) updateVisible() {
+	m.Visible = m.Filtered
 }
 
 func instantParse(m *Model) error {
@@ -96,11 +111,33 @@ func instantParse(m *Model) error {
 	return nil
 }
 
-type TUI struct {
-	entries []model.Entry
+func view(m Model) string {
+	var s string
+	// prompt
+	s += fmt.Sprintf("> %s█\r\n", m.Input)
+	// error
+	if len(m.Msg) > 0 {
+		s += fmt.Sprintf("%s\r\n", m.Msg)
+	}
+	// list
+	for _, e := range m.Visible {
+		cur := BgBlueMatched(e.String(), strings.Fields(m.Input))
+		if m.SelectedEntry == e {
+			cur = fmt.Sprintf("[ %s ]", cur)
+			cur = Text(cur).Bold().String()
+		} else {
+			cur = fmt.Sprintf("  %s", cur)
+		}
+		s += cur + "\r\n"
+	}
+	return s
 }
 
-func New(entries []model.Entry) TUI {
+type TUI struct {
+	entries []*model.Entry
+}
+
+func New(entries []*model.Entry) TUI {
 	return TUI{entries}
 }
 
@@ -118,9 +155,9 @@ func (t *TUI) Run() {
 
 	buf := make([]byte, 3)
 	for {
+		model.Update()
 		// clear the screen, not cross-platform!
 		fmt.Print("\033[H\033[2J")
-		filterEntry(&model)
 		fmt.Print(view(model))
 
 		n, err := os.Stdin.Read(buf)
@@ -144,17 +181,12 @@ func (t *TUI) Run() {
 			}
 			model.Msg = ""
 		case KeyCtrlN:
-			if len(model.FilteredEntries) > 0 {
-				model.SelectedEntry = (model.SelectedEntry + 1) % len(model.FilteredEntries)
-			}
+			model.SelectNextEntry()
 		case KeyCtrlP:
-			if len(model.FilteredEntries) > 0 {
-				// add an extra length to ensure the mod result greater than zero
-				model.SelectedEntry = (model.SelectedEntry - 1 + len(model.FilteredEntries)) % len(model.FilteredEntries)
-			}
+			model.SelectPrevEntry()
 		case KeyEnter:
 			if instantParse(&model) == nil {
-				model.AllEntries = append(model.AllEntries, model.ParsingEntry)
+				model.AddEntry(model.ParsingEntry)
 				model.Input = ""
 			}
 		default:

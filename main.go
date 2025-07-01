@@ -20,6 +20,10 @@ func main() {
 	defer file.Close()
 
 	entries := model.FromCsv(file)
-	tui := tui.New(entries)
+	var entryRefs []*model.Entry
+	for _, e := range entries {
+		entryRefs = append(entryRefs, &e)
+	}
+	tui := tui.New(entryRefs)
 	tui.Run()
 }
