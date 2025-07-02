@@ -189,10 +189,11 @@ func view(m Model) string {
 
 type TUI struct {
 	entries []*model.Entry
+	save    func([]*model.Entry)
 }
 
-func New(entries []*model.Entry) TUI {
-	return TUI{entries}
+func New(entries []*model.Entry, save func([]*model.Entry)) TUI {
+	return TUI{entries, save}
 }
 
 func (t *TUI) Run() {
@@ -225,7 +226,23 @@ func (t *TUI) Run() {
 		key := Key(buf[0])
 		switch key {
 		case KeyCtrlC:
-			return
+			for {
+				model.Msg = "save? [y]/n"
+				model.Update()
+				fmt.Print("\033[H\033[2J")
+				fmt.Print(view(model))
+				n, err := os.Stdin.Read(buf)
+				if err != nil || n == 0 {
+					panic(err)
+				}
+				if buf[0] == byte(KeyY) || buf[0] == byte(KeyEnter) {
+					t.save(model.Entries)
+					return
+				}
+				if buf[0] == byte(KeyN) {
+					return
+				}
+			}
 		case KeyCtrlU:
 			model.Input = ""
 			model.Msg = ""
@@ -245,7 +262,11 @@ func (t *TUI) Run() {
 			}
 		case KeyCtrlD:
 			model.DelEntry(model.SelectedEntry)
+		case KeyCtrlS:
+			t.save(model.Entries)
+			model.Msg = "saved"
 		default:
+			fmt.Println(key)
 			model.Input += string(byte(key))
 			model.Msg = ""
 		}
