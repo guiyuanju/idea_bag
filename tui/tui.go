@@ -167,7 +167,12 @@ func instantParse(m *Model) error {
 func view(m Model) string {
 	var s string
 	// prompt
-	s += fmt.Sprintf("> %s█\r\n", m.Input)
+	idx, ok := m.IndexOfEntryInFiltered(m.SelectedEntry)
+	if ok {
+		s += fmt.Sprintf("%d/%d > %s█\r\n", idx+1, len(m.Filtered), m.Input)
+	} else {
+		s += fmt.Sprintf("-/%d > %s█\r\n", len(m.Filtered), m.Input)
+	}
 	// error
 	if len(m.Msg) > 0 {
 		s += fmt.Sprintf("%s\r\n", m.Msg)
