@@ -19,6 +19,7 @@ type Model struct {
 	Input           string
 	ParsingEntry    string
 	Msg             string
+	Prefix          string
 }
 
 func initModel(entries []*string) Model {
@@ -153,7 +154,7 @@ func (m *Model) updateVisible() {
 }
 
 func instantParse(m *Model) error {
-	p := parser.New(m.Input, 2)
+	p := parser.New(m.Input, len(m.Prefix))
 	entry, err := p.Parse()
 	if err != nil {
 		m.Msg = err.Error()
@@ -164,15 +165,16 @@ func instantParse(m *Model) error {
 	return nil
 }
 
-func view(m Model) string {
+func view(m *Model) string {
 	var s string
 	// prompt
 	idx, ok := m.IndexOfEntryInFiltered(m.SelectedEntry)
 	if ok {
-		s += fmt.Sprintf("%d/%d > %s█\r\n", idx+1, len(m.Filtered), m.Input)
+		m.Prefix = fmt.Sprintf("%d/%d > ", idx+1, len(m.Filtered))
 	} else {
-		s += fmt.Sprintf("-/%d > %s█\r\n", len(m.Filtered), m.Input)
+		m.Prefix = fmt.Sprintf("-/%d > ", len(m.Filtered))
 	}
+	s += m.Prefix + m.Input + "█\r\n"
 	// error
 	if len(m.Msg) > 0 {
 		s += fmt.Sprintf("%s\r\n", m.Msg)
@@ -217,7 +219,7 @@ func (t *TUI) Run() {
 		model.Update()
 		// clear the screen, not cross-platform!
 		fmt.Print("\033[H\033[2J")
-		fmt.Print(view(model))
+		fmt.Print(view(&model))
 
 		n, err := os.Stdin.Read(buf)
 		if err != nil {
@@ -234,7 +236,7 @@ func (t *TUI) Run() {
 				model.Msg = "save? [y]/n"
 				model.Update()
 				fmt.Print("\033[H\033[2J")
-				fmt.Print(view(model))
+				fmt.Print(view(&model))
 				n, err := os.Stdin.Read(buf)
 				if err != nil || n == 0 {
 					panic(err)

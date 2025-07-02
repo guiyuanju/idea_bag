@@ -85,5 +85,5 @@ func (p *EntryParser) parseTag() (string, error) {
 }
 
 func New(s string, offset int) EntryParser {
-	return EntryParser{0, strings.TrimSpace(s), offset}
+	return EntryParser{0, s, offset}
 }
