@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	model "idea_bag/model"
 	"idea_bag/parser"
 	"os"
 	"slices"
@@ -12,17 +11,17 @@ import (
 )
 
 type Model struct {
-	Entries         []*model.Entry
-	Filtered        []*model.Entry
-	Visible         []*model.Entry
+	Entries         []*string
+	Filtered        []*string
+	Visible         []*string
 	VisibleStartIdx int
-	SelectedEntry   *model.Entry
+	SelectedEntry   *string
 	Input           string
-	ParsingEntry    model.Entry
+	ParsingEntry    string
 	Msg             string
 }
 
-func initModel(entries []*model.Entry) Model {
+func initModel(entries []*string) Model {
 	return Model{
 		Entries:       entries,
 		SelectedEntry: nil,
@@ -35,19 +34,19 @@ func (m *Model) Update() {
 	m.updateVisible()
 }
 
-func (m *Model) AddEntry(e model.Entry) {
+func (m *Model) AddEntry(e string) {
 	m.Entries = append(m.Entries, &e)
 	m.SelectedEntry = m.Entries[len(m.Entries)-1]
 }
 
-func (m *Model) DelEntry(e *model.Entry) {
+func (m *Model) DelEntry(e *string) {
 	if e == nil {
 		return
 	}
-	m.Entries = slices.DeleteFunc(m.Entries, func(x *model.Entry) bool { return e == x })
+	m.Entries = slices.DeleteFunc(m.Entries, func(x *string) bool { return e == x })
 }
 
-func (m *Model) IndexOfEntryInFiltered(entry *model.Entry) (int, bool) {
+func (m *Model) IndexOfEntryInFiltered(entry *string) (int, bool) {
 	for i, e := range m.Filtered {
 		if e == entry {
 			return i, true
@@ -89,13 +88,13 @@ func (m *Model) SelectPrevEntry() {
 func (m *Model) updateFilter() {
 	text := m.Input
 	tokens := strings.Fields(text)
-	res := []*model.Entry{}
+	res := []*string{}
 outer:
 	for i := range len(m.Entries) {
 		// reverse, make the newest added item shows at the top
 		e := m.Entries[len(m.Entries)-i-1]
 		for _, token := range tokens {
-			if !strings.Contains(e.String(), token) {
+			if !strings.Contains(*e, token) {
 				continue outer
 			}
 		}
@@ -175,7 +174,7 @@ func view(m Model) string {
 	}
 	// list
 	for _, e := range m.Visible {
-		cur := BgBlueMatched(e.String(), strings.Fields(m.Input))
+		cur := BgBlueMatched(*e, strings.Fields(m.Input))
 		if m.SelectedEntry == e {
 			cur = fmt.Sprintf("[ %s ]", cur)
 			cur = Text(cur).Bold().String()
@@ -188,11 +187,11 @@ func view(m Model) string {
 }
 
 type TUI struct {
-	entries []*model.Entry
-	save    func([]*model.Entry)
+	entries []*string
+	save    func([]*string)
 }
 
-func New(entries []*model.Entry, save func([]*model.Entry)) TUI {
+func New(entries []*string, save func([]*string)) TUI {
 	return TUI{entries, save}
 }
 

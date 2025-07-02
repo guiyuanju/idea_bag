@@ -1,44 +1,36 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	model "idea_bag/model"
 	tui "idea_bag/tui"
 	"os"
+	"strings"
 )
 
 type UI interface {
 	Run()
 }
 
+const FILE string = "ideabag.txt"
+
 func main() {
-	file, err := os.OpenFile("ideabag.csv", os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		fmt.Println("ERROR: failed to open csv file: ", err)
-		return
-	}
-	defer file.Close()
-
-	save := func(es []*model.Entry) {
-		file, err := os.OpenFile("ideabag.csv", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0644)
-		if err != nil {
-			panic("failed to open file for saving")
-		}
-		defer file.Close()
-
-		var entries []model.Entry
+	save := func(es []*string) {
+		var entries []string
 		for _, e := range es {
 			entries = append(entries, *e)
 		}
-		buf := bufio.NewWriter(file)
-		model.ToCsv(entries, buf)
-		buf.Flush()
+		os.WriteFile(FILE, []byte(strings.Join(entries, "\n")), 0644)
 	}
 
-	entries := model.FromCsv(bufio.NewReader(file))
-	var entryRefs []*model.Entry
+	bs, err := os.ReadFile(FILE)
+	if err != nil {
+		panic(err)
+	}
+	entries := strings.Split(string(bs), "\n")
+	var entryRefs []*string
 	for _, e := range entries {
+		if e == "" {
+			continue
+		}
 		entryRefs = append(entryRefs, &e)
 	}
 	tui := tui.New(entryRefs, save)

@@ -3,7 +3,6 @@ package parser
 import (
 	"errors"
 	"fmt"
-	model "idea_bag/model"
 	"slices"
 	"strings"
 )
@@ -14,53 +13,33 @@ type EntryParser struct {
 	offset int
 }
 
-func (p *EntryParser) invalid() bool {
-	return slices.Contains([]byte{',', '"'}, p.s[p.i])
-}
-
-func (p *EntryParser) Parse() (model.Entry, error) {
+func (p *EntryParser) Parse() (string, error) {
 	if len(p.s) == 0 {
-		return model.Entry{}, errors.New(p.errorMsg("expect project name"))
+		return "", errors.New(p.errorMsg("expect project name"))
 	}
 
-	e := model.Entry{}
+	e := []string{}
 	for p.i < len(p.s) {
 		switch p.s[p.i] {
 		case '#':
-			if len(e.Project) == 0 {
-				return model.Entry{}, errors.New(p.errorMsg("should provide project name first"))
-			}
 			tag, err := p.parseTag()
 			if err != nil {
-				return model.Entry{}, errors.New(p.errorMsg(err.Error()))
+				return "", errors.New(p.errorMsg(err.Error()))
 			}
-			e.AddTag(tag)
+			e = append(e, tag)
 
-		case '&':
-			if len(e.Project) == 0 {
-				return model.Entry{}, errors.New(p.errorMsg("should provide project name first"))
-			}
-			tool, err := p.parseTool()
-			if err != nil {
-				return model.Entry{}, errors.New(p.errorMsg(err.Error()))
-			}
-			e.AddTool(tool)
 		case ' ', '\n':
 			p.i++
 		default:
-			if p.i == 0 {
-				project, err := p.parseProject()
-				if err != nil {
-					return model.Entry{}, errors.New(p.errorMsg(err.Error()))
-				}
-				e.SetProject(project)
-			} else {
-				return model.Entry{}, errors.New(p.errorMsg("project name should comes first"))
+			part, err := p.parseProject()
+			if err != nil {
+				return "", errors.New(p.errorMsg(err.Error()))
 			}
+			e = append(e, strings.TrimSpace(part))
 		}
 	}
 
-	return e, nil
+	return strings.Join(e, " "), nil
 }
 
 func (p *EntryParser) errorMsg(msg string) string {
@@ -77,13 +56,10 @@ func (p *EntryParser) isAtEnd() bool {
 	return p.i >= len(p.s)
 }
 
-func (p *EntryParser) parseProject() (model.Project, error) {
+func (p *EntryParser) parseProject() (string, error) {
 	project := []byte{}
-	ends := []byte{'\n', '#', '&'}
+	ends := []byte{'\n', '#'}
 	for !p.isAtEnd() && !slices.Contains(ends, p.s[p.i]) {
-		if p.invalid() {
-			return "", errors.New("invalid character")
-		}
 		project = append(project, p.s[p.i])
 		if !p.advance() {
 			break
@@ -92,14 +68,11 @@ func (p *EntryParser) parseProject() (model.Project, error) {
 	return string(project), nil
 }
 
-func (p *EntryParser) parseTag() (model.Tag, error) {
+func (p *EntryParser) parseTag() (string, error) {
 	p.i++
 	tag := []byte{'#'}
-	ends := []byte{' ', '#', '&', '\n'}
+	ends := []byte{' ', '#', '\n'}
 	for !p.isAtEnd() && !slices.Contains(ends, p.s[p.i]) {
-		if p.invalid() {
-			return "", errors.New("invalid character")
-		}
 		tag = append(tag, p.s[p.i])
 		if !p.advance() {
 			break
@@ -109,25 +82,6 @@ func (p *EntryParser) parseTag() (model.Tag, error) {
 		return "", errors.New("expect tag name")
 	}
 	return string(tag), nil
-}
-
-func (p *EntryParser) parseTool() (model.Tool, error) {
-	p.i++
-	tool := []byte{'&'}
-	ends := []byte{' ', '#', '&', '\n'}
-	for !p.isAtEnd() && !slices.Contains(ends, p.s[p.i]) {
-		if p.invalid() {
-			return "", errors.New("invalid character")
-		}
-		tool = append(tool, p.s[p.i])
-		if !p.advance() {
-			break
-		}
-	}
-	if len(tool) == 1 {
-		return "", errors.New("expect tool name")
-	}
-	return string(tool), nil
 }
 
 func New(s string, offset int) EntryParser {
