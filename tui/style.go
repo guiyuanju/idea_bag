@@ -78,7 +78,9 @@ func matchedRanges(s string, match []string) [][]int {
 			mergedRanges = append(mergedRanges, r1)
 		}
 	}
-	mergedRanges = append(mergedRanges, matchRanges[i])
+	if len(matchRanges) > i {
+		mergedRanges = append(mergedRanges, matchRanges[i])
+	}
 
 	return mergedRanges
 }

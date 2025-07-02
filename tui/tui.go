@@ -5,19 +5,21 @@ import (
 	model "idea_bag/model"
 	"idea_bag/parser"
 	"os"
+	"slices"
 	"strings"
 
-	"github.com/charmbracelet/x/term"
+	"golang.org/x/term"
 )
 
 type Model struct {
-	Entries       []*model.Entry
-	Filtered      []*model.Entry
-	Visible       []*model.Entry
-	SelectedEntry *model.Entry
-	Input         string
-	ParsingEntry  model.Entry
-	Msg           string
+	Entries         []*model.Entry
+	Filtered        []*model.Entry
+	Visible         []*model.Entry
+	VisibleStartIdx int
+	SelectedEntry   *model.Entry
+	Input           string
+	ParsingEntry    model.Entry
+	Msg             string
 }
 
 func initModel(entries []*model.Entry) Model {
@@ -35,6 +37,7 @@ func (m *Model) Update() {
 
 func (m *Model) AddEntry(e model.Entry) {
 	m.Entries = append(m.Entries, &e)
+	m.SelectedEntry = m.Entries[len(m.Entries)-1]
 }
 
 func (m *Model) IndexOfEntryInFiltered(entry *model.Entry) (int, bool) {
@@ -92,11 +95,55 @@ outer:
 		res = append(res, e)
 	}
 
+	// reset selected entry to the first entry if it is filtered out
+	if idx := slices.Index(res, m.SelectedEntry); idx < 0 && len(res) > 0 {
+		m.SelectedEntry = res[0]
+	}
+
 	m.Filtered = res
 }
 
+func (m *Model) AvailableLines() int {
+	_, h, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		panic("failed to get term size")
+	}
+	return h - 4
+}
+
 func (m *Model) updateVisible() {
-	m.Visible = m.Filtered
+	h := m.AvailableLines()
+	start := m.VisibleStartIdx
+	end := start + h
+	if end >= len(m.Filtered) {
+		end = len(m.Filtered) - 1
+	}
+
+	idx, ok := m.IndexOfEntryInFiltered(m.SelectedEntry)
+	if !ok {
+		m.Visible = m.Filtered
+		return
+	}
+
+	if idx > end {
+		end = idx
+		start = end - h
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	if idx < start {
+		start = idx
+		end = start + h
+		if end >= len(m.Filtered) {
+			end = len(m.Filtered) - 1
+		}
+	}
+
+	m.VisibleStartIdx = start
+
+	m.Visible = m.Filtered[start : end+1]
 }
 
 func instantParse(m *Model) error {
@@ -142,11 +189,11 @@ func New(entries []*model.Entry) TUI {
 }
 
 func (t *TUI) Run() {
-	oldState, err := term.MakeRaw(os.Stdin.Fd())
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		panic(err)
 	}
-	defer term.Restore(os.Stdin.Fd(), oldState)
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
 	HideCursor()
 	defer ShowCursor()
