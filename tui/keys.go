@@ -54,6 +54,7 @@ const (
 	KeyCtrlF Key = 6
 	KeyCtrlU Key = 21
 	KeyCtrlC Key = 3
+	KeyCtrlD Key = 4
 )
 
 func (k Key) String() string {
@@ -153,6 +154,8 @@ func (k Key) String() string {
 		return "KeyCtrlU"
 	case KeyCtrlC:
 		return "KeyCtrlC"
+	case KeyCtrlD:
+		return "KeyCtrlD"
 
 	default:
 		return fmt.Sprintf("Key(%d)", k)

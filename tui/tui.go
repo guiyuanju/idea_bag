@@ -40,6 +40,13 @@ func (m *Model) AddEntry(e model.Entry) {
 	m.SelectedEntry = m.Entries[len(m.Entries)-1]
 }
 
+func (m *Model) DelEntry(e *model.Entry) {
+	if e == nil {
+		return
+	}
+	m.Entries = slices.DeleteFunc(m.Entries, func(x *model.Entry) bool { return e == x })
+}
+
 func (m *Model) IndexOfEntryInFiltered(entry *model.Entry) (int, bool) {
 	for i, e := range m.Filtered {
 		if e == entry {
@@ -236,6 +243,8 @@ func (t *TUI) Run() {
 				model.AddEntry(model.ParsingEntry)
 				model.Input = ""
 			}
+		case KeyCtrlD:
+			model.DelEntry(model.SelectedEntry)
 		default:
 			model.Input += string(byte(key))
 			model.Msg = ""
